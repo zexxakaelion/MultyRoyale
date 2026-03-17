@@ -600,17 +600,17 @@ class LearningEngine:
             self.memory.update_weight("rest_threshold", -0.05)
             updates.append("↓ rest threshold (over-resting)")
 
-       # === COMBAT WIN RATE ADJUSTMENT ===
-if n_combats > 0:
-    win_rate = combat_wins / n_combats
+             # === COMBAT WIN RATE ADJUSTMENT ===
+        if n_combats > 0:
+            win_rate = combat_wins / n_combats
 
-    if n_combats > 3 and win_rate < 0.3:
-        self.memory.update_weight("attack_vs_evade", -0.1)
-        updates.append("↓↓ aggression (bad combat performance)")
+            if n_combats > 3 and win_rate < 0.3:
+                self.memory.update_weight("attack_vs_evade", -0.1)
+                updates.append("↓↓ aggression (bad combat performance)")
 
-    elif win_rate > 0.7 and n_combats > 3:
-        self.memory.update_attack_threshold(-0.03)
-        updates.append(f"↓ attack threshold (combat win_rate={win_rate:.1%})")
+            elif win_rate > 0.7 and n_combats > 3:
+                self.memory.update_attack_threshold(-0.03)
+                updates.append(f"↓ attack threshold (combat win_rate={win_rate:.1%})")
 
         # Retrain models
         self.retrain(self.memory.get_recent_games(50))
