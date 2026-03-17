@@ -93,11 +93,11 @@ class GameMemory:
             # Action preference weights [0.0 - 1.0]
             "action_weights": {
                 "explore_vs_move":      0.5,   # >0.5 = prefer explore
-                "attack_vs_evade":      0.6,   # >0.5 = prefer attack
-                "heal_threshold":       0.30,  # heal when HP% < this
+                "attack_vs_evade":      0.45,   # >0.5 = prefer attack
+                "heal_threshold":       0.45,  # heal when HP% < this
                 "rest_threshold":       0.30,  # rest when EP% < this
                 "use_facility":         0.7,   # probability of using facility
-                "flee_when_losing":     0.7,   # flee if win_prob < this
+                "flee_when_losing":     0.8,   # flee if win_prob < this
             },
 
             # Terrain preferences (learned from wins/deaths)
@@ -117,7 +117,7 @@ class GameMemory:
             "attack_threshold": 0.65,
 
             # Learning rate
-            "learning_rate": 0.1,
+            "learning_rate": 0.05,
         }
 
     # -------------------------------------------------------------------------

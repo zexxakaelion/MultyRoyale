@@ -169,21 +169,27 @@ class CombatPredictor:
             return False
 
     def predict_win_probability(self, my_stats: Dict, enemy_stats: Dict) -> float:
-        """
-        Predict win probability. Returns heuristic if not trained.
-        """
-        if not SKLEARN_AVAILABLE or not self.trained:
-            return self._heuristic_predict(my_stats, enemy_stats)
+     """
+    Predict win probability. Returns heuristic if not trained.
+    """
+    if not SKLEARN_AVAILABLE or not self.trained:
+        return self._heuristic_predict(my_stats, enemy_stats)
 
-        try:
-            features = self._extract_features(my_stats, enemy_stats)
-            X_scaled = self.scaler.transform([features])
-            prob = self.model.predict_proba(X_scaled)[0][1]
-            return round(float(prob), 3)
-        except Exception as e:
-            logger.debug(f"ML prediction failed, using heuristic: {e}")
-            return self._heuristic_predict(my_stats, enemy_stats)
+    try:
+        features = self._extract_features(my_stats, enemy_stats)
+        X_scaled = self.scaler.transform([features])
+        prob = self.model.predict_proba(X_scaled)[0][1]
 
+        # 😈 MODE GACOR - anti nekat
+        if prob < 0.65:
+            prob *= 0.7
+
+        return round(float(prob), 3)
+
+    except Exception as e:
+        logger.debug(f"ML prediction failed, using heuristic: {e}")
+        return self._heuristic_predict(my_stats, enemy_stats)
+        
     def _heuristic_predict(self, my_stats: Dict, enemy_stats: Dict) -> float:
         """Rule-based fallback when ML model not ready."""
         my_hp    = my_stats.get("hp", 100)
@@ -197,13 +203,17 @@ class CombatPredictor:
         my_dmg    = max(1, my_atk - e_def * 0.5)
         their_dmg = max(1, e_atk - my_def * 0.5)
 
-        my_ttk    = e_hp / my_dmg
-        their_ttk = my_hp / their_dmg
+        # 🔥 include heal
+        heal_hp = my_stats.get("heal_hp_total", 0)
+        effective_hp = my_hp + heal_hp
 
-        if their_ttk > my_ttk:
-            return min(0.92, 0.55 + (their_ttk - my_ttk) * 0.05)
-        else:
-            return max(0.08, 0.50 - (my_ttk - their_ttk) * 0.06)
+        my_ttk    = e_hp / my_dmg
+        their_ttk = effective_hp / their_dmg
+
+    if their_ttk > my_ttk:
+        return min(0.92, 0.55 + (their_ttk - my_ttk) * 0.05)
+    else:
+        return max(0.08, 0.50 - (my_ttk - their_ttk) * 0.06)
 
 
 class StrategyOptimizer:
@@ -537,6 +547,9 @@ class LearningEngine:
         dz_escapes    = game_result.get("death_zone_escapes", 0)
 
         updates = []
+        
+        if kills == 0:
+            self.memory.update_weight("explore_vs_move", +0.1)
 
         # === AGGRESSION TUNING ===
         if is_winner:
@@ -560,6 +573,9 @@ class LearningEngine:
         elif dz_escapes > 0 and is_winner:
             self.memory.update_weight("flee_when_losing", +0.02)
             updates.append("↑ dz escape reward")
+            
+        if death_cause == "death_zone":
+            self.memory.update_weight("explore_vs_move", -0.1)
 
         # === HEALING BEHAVIOR ===
         if death_cause in ("agent", "monster") and not is_winner:
@@ -584,17 +600,17 @@ class LearningEngine:
             self.memory.update_weight("rest_threshold", -0.05)
             updates.append("↓ rest threshold (over-resting)")
 
-        # === COMBAT WIN RATE ADJUSTMENT ===
-        if n_combats > 0:
-            win_rate = combat_wins / n_combats
-            if win_rate < 0.4:
-                # Combat is not going well — raise attack threshold
-                self.memory.update_attack_threshold(+0.05)
-                updates.append(f"↑ attack threshold (combat win_rate={win_rate:.1%})")
-            elif win_rate > 0.7 and n_combats > 3:
-                # Combat is going great — lower threshold to attack more
-                self.memory.update_attack_threshold(-0.03)
-                updates.append(f"↓ attack threshold (combat win_rate={win_rate:.1%})")
+       # === COMBAT WIN RATE ADJUSTMENT ===
+if n_combats > 0:
+    win_rate = combat_wins / n_combats
+
+    if n_combats > 3 and win_rate < 0.3:
+        self.memory.update_weight("attack_vs_evade", -0.1)
+        updates.append("↓↓ aggression (bad combat performance)")
+
+    elif win_rate > 0.7 and n_combats > 3:
+        self.memory.update_attack_threshold(-0.03)
+        updates.append(f"↓ attack threshold (combat win_rate={win_rate:.1%})")
 
         # Retrain models
         self.retrain(self.memory.get_recent_games(50))
